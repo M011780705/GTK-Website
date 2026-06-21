@@ -15,51 +15,66 @@ export default function SignUpPage() {
   async function signUp() {
     setMessage("Creating account...");
 
-    // Check if username already exists
-    const { data: existing } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("username", username)
-      .maybeSingle();
+    try {
+      // 1. Check username exists
+      const { data: existing, error: checkError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("username", username)
+        .maybeSingle();
 
-    if (existing) {
-      setMessage("That username is already taken.");
-      return;
-    }
+      if (checkError) {
+        console.log("USERNAME CHECK ERROR:", checkError);
+        setMessage(checkError.message || "Username check failed");
+        return;
+      }
 
-    // Create auth account
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
+      if (existing) {
+        setMessage("That username is already taken.");
+        return;
+      }
 
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
+      // 2. Create auth account
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
 
-    if (!data.user) {
-      setMessage("Unable to create account.");
-      return;
-    }
+      console.log("SIGNUP RESULT:", { data, error });
 
-    // Create profile (safe insert)
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .upsert({
+      if (error) {
+        console.log("SIGNUP ERROR FULL:", error);
+        setMessage(error.message || JSON.stringify(error) || "Signup failed");
+        return;
+      }
+
+      if (!data?.user) {
+        setMessage("No user returned. Check email confirmation settings.");
+        return;
+      }
+
+      // 3. Create profile safely
+      const { error: profileError } = await supabase.from("profiles").upsert({
         id: data.user.id,
         username,
         is_admin: false,
       });
 
-    if (profileError) {
-      setMessage(profileError.message);
-      return;
+      if (profileError) {
+        console.log("PROFILE ERROR:", profileError);
+        setMessage(profileError.message || "Profile creation failed");
+        return;
+      }
+
+      setMessage(
+        "Account created! Check your email and confirm before logging in."
+      );
+
+      router.push("/login");
+    } catch (err: any) {
+      console.log("UNEXPECTED ERROR:", err);
+      setMessage(err?.message || "Unexpected error occurred");
     }
-
-    setMessage("Account created! Please confirm your email before logging in.");
-
-    router.push("/login");
   }
 
   return (
@@ -116,6 +131,7 @@ const input: React.CSSProperties = {
   color: "white",
   width: "100%",
   maxWidth: 400,
+  boxSizing: "border-box",
 };
 
 const button: React.CSSProperties = {
