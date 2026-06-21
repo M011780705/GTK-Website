@@ -15,6 +15,7 @@ export default function SignUpPage() {
   async function signUp() {
     setMessage("Creating account...");
 
+    // Check if username already exists
     const { data: existing } = await supabase
       .from("profiles")
       .select("id")
@@ -26,6 +27,7 @@ export default function SignUpPage() {
       return;
     }
 
+    // Create auth account
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -41,11 +43,13 @@ export default function SignUpPage() {
       return;
     }
 
+    // Create profile (safe insert)
     const { error: profileError } = await supabase
       .from("profiles")
-      .insert({
+      .upsert({
         id: data.user.id,
         username,
+        is_admin: false,
       });
 
     if (profileError) {
@@ -53,7 +57,7 @@ export default function SignUpPage() {
       return;
     }
 
-    setMessage("Account created!");
+    setMessage("Account created! Please confirm your email before logging in.");
 
     router.push("/login");
   }
@@ -88,7 +92,7 @@ export default function SignUpPage() {
         Create Account
       </button>
 
-      <p>{message}</p>
+      <p style={{ marginTop: 10 }}>{message}</p>
     </main>
   );
 }
@@ -101,6 +105,7 @@ const page: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: 12,
+  fontFamily: "Arial",
 };
 
 const input: React.CSSProperties = {
@@ -109,6 +114,8 @@ const input: React.CSSProperties = {
   border: "1px solid #333",
   background: "#111",
   color: "white",
+  width: "100%",
+  maxWidth: 400,
 };
 
 const button: React.CSSProperties = {
@@ -118,4 +125,5 @@ const button: React.CSSProperties = {
   cursor: "pointer",
   background: "#333",
   color: "white",
+  width: 200,
 };

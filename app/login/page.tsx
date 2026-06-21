@@ -19,22 +19,20 @@ export default function LoginPage() {
       password,
     });
 
+    console.log("LOGIN RESULT:", { data, error });
+
     if (error) {
-      setMessage("Error: " + error.message);
+      if (error.message.toLowerCase().includes("not confirmed")) {
+        setMessage("Please confirm your email before logging in.");
+        return;
+      }
+
+      setMessage(error.message || "Login failed");
       return;
     }
 
-    if (!data.user) return;
-
-    // CHECK PROFILE
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("username")
-      .eq("id", data.user.id)
-      .single();
-
-    if (!profile) {
-      router.push("/setup-username");
+    if (!data.session) {
+      setMessage("No active session. Please try again.");
       return;
     }
 
@@ -64,7 +62,7 @@ export default function LoginPage() {
         Login
       </button>
 
-      <p style={{ marginTop: 20 }}>{message}</p>
+      <p style={{ marginTop: 10 }}>{message}</p>
     </main>
   );
 }
@@ -74,10 +72,10 @@ const page: React.CSSProperties = {
   color: "white",
   background: "#0f0f0f",
   minHeight: "100vh",
-  fontFamily: "Arial",
   display: "flex",
   flexDirection: "column",
-  gap: 10,
+  gap: 12,
+  fontFamily: "Arial",
 };
 
 const input: React.CSSProperties = {
@@ -88,15 +86,14 @@ const input: React.CSSProperties = {
   color: "white",
   width: "100%",
   maxWidth: 400,
-  boxSizing: "border-box",
 };
 
 const button: React.CSSProperties = {
   padding: 10,
+  borderRadius: 6,
+  border: "none",
+  cursor: "pointer",
   background: "#333",
   color: "white",
-  border: "none",
-  borderRadius: 6,
-  cursor: "pointer",
   width: 200,
 };
