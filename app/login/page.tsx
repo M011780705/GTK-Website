@@ -14,29 +14,43 @@ export default function LoginPage() {
   async function login() {
     setMessage("Logging in...");
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    console.log("LOGIN RESULT:", { data, error });
+      // 🔥 FULL DEBUG OUTPUT
+      console.log("LOGIN RESPONSE DATA:", data);
+      console.log("LOGIN RESPONSE ERROR:", error);
 
-    if (error) {
-      if (error.message.toLowerCase().includes("not confirmed")) {
-        setMessage("Please confirm your email before logging in.");
+      // 🚨 HARD ERROR CHECK
+      if (error) {
+        setMessage(
+          error.message ||
+            JSON.stringify(error, null, 2) ||
+            "Login failed (unknown error)"
+        );
         return;
       }
 
-      setMessage(error.message || "Login failed");
-      return;
-    }
+      // 🚨 SESSION CHECK (VERY IMPORTANT)
+      if (!data?.session) {
+        setMessage("No active session. Check email confirmation.");
+        return;
+      }
 
-    if (!data.session) {
-      setMessage("No active session. Please try again.");
-      return;
-    }
+      setMessage("Login successful!");
+      router.push("/");
+    } catch (err: any) {
+      console.log("UNEXPECTED LOGIN ERROR:", err);
 
-    router.push("/");
+      setMessage(
+        err?.message ||
+          JSON.stringify(err, null, 2) ||
+          "Unexpected login error"
+      );
+    }
   }
 
   return (
@@ -86,6 +100,7 @@ const input: React.CSSProperties = {
   color: "white",
   width: "100%",
   maxWidth: 400,
+  boxSizing: "border-box",
 };
 
 const button: React.CSSProperties = {
