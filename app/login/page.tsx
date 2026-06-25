@@ -14,7 +14,7 @@ export default function LoginPage() {
 
   return (
     <main style={page}>
-      <h1>Login</h1>
+      <h1>Gorilla Tag Kaizo</h1>
 
       <button onClick={loginWithDiscord} style={button}>
         Continue with Discord
@@ -24,22 +24,23 @@ export default function LoginPage() {
 }
 
 const page: React.CSSProperties = {
-  padding: 40,
-  background: "#0f0f0f",
-  color: "white",
-  minHeight: "100vh",
+  height: "100vh",
   display: "flex",
   flexDirection: "column",
-  gap: 12,
+  justifyContent: "center",
+  alignItems: "center",
+  gap: 20,
+  background: "#0f0f0f",
+  color: "white",
   fontFamily: "Arial",
 };
 
 const button: React.CSSProperties = {
-  padding: 12,
+  padding: "12px 20px",
+  borderRadius: 8,
   background: "#5865F2",
   color: "white",
   border: "none",
-  borderRadius: 6,
   cursor: "pointer",
-  width: 220,
+  fontSize: 16,
 };
