@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 export default function Navbar() {
   const [loading, setLoading] = useState(true);
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -22,18 +22,17 @@ export default function Navbar() {
   }, []);
 
   async function checkUser() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data } = await supabase.auth.getUser();
+
+    const user = data?.user ?? null;
+
+    setUser(user);
 
     if (!user) {
-      setLoggedIn(false);
       setIsAdmin(false);
       setLoading(false);
       return;
     }
-
-    setLoggedIn(true);
 
     const { data: admin } = await supabase
       .from("admins")
@@ -79,19 +78,15 @@ export default function Navbar() {
           Rules
         </Link>
 
-        {!loading && !loggedIn && (
-          <>
-            <Link href="/signup" style={link}>
-              Sign Up
-            </Link>
-
-            <Link href="/login" style={link}>
-              Login
-            </Link>
-          </>
+        {/* NOT LOGGED IN */}
+        {!loading && !user && (
+          <Link href="/login" style={discordButton}>
+            Login with Discord
+          </Link>
         )}
 
-        {!loading && loggedIn && (
+        {/* LOGGED IN */}
+        {!loading && user && (
           <>
             <Link href="/profile" style={link}>
               Profile
@@ -144,6 +139,14 @@ const links: React.CSSProperties = {
 
 const link: React.CSSProperties = {
   color: "#ccc",
+  textDecoration: "none",
+};
+
+const discordButton: React.CSSProperties = {
+  background: "#5865F2",
+  color: "white",
+  padding: "6px 10px",
+  borderRadius: 6,
   textDecoration: "none",
 };
 
