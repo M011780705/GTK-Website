@@ -14,18 +14,31 @@ export async function GET(request: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
+  // Exchange OAuth code for session
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error || !data.user) {
+    console.log("AUTH ERROR:", error);
     return NextResponse.redirect(`${origin}/login`);
   }
 
-  // 🔥 ENSURE PROFILE EXISTS
-  await supabase.from("profiles").upsert({
-    id: data.user.id,
-    username: data.user.user_metadata?.full_name || "User",
-    is_admin: false,
-  });
+  const user = data.user;
+
+  // 🔥 CRITICAL: CREATE PROFILE IF IT DOESN'T EXIST
+  const { error: profileError } = await supabase
+    .from("profiles")
+    .upsert({
+      id: user.id,
+      username:
+        user.user_metadata?.full_name ||
+        user.user_metadata?.name ||
+        "Discord User",
+      is_admin: false,
+    });
+
+  if (profileError) {
+    console.log("PROFILE ERROR:", profileError);
+  }
 
   return NextResponse.redirect(`${origin}/`);
 }
