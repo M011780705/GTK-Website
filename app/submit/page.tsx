@@ -3,7 +3,13 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
+type Map = {
+  id: string;
+  name: string;
+};
+
 export default function SubmitPage() {
+  const [maps, setMaps] = useState<Map[]>([]);
   const [map, setMap] = useState("");
   const [runType, setRunType] = useState("normal");
   const [runTime, setRunTime] = useState("");
@@ -15,10 +21,11 @@ export default function SubmitPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadUser();
+    load();
   }, []);
 
-  async function loadUser() {
+  async function load() {
+    // 1. Get user
     const { data: auth } = await supabase.auth.getUser();
 
     if (!auth.user) {
@@ -29,51 +36,62 @@ export default function SubmitPage() {
 
     setUserId(auth.user.id);
 
-    const { data: profile, error } = await supabase
+    // 2. Get profile
+    const { data: profile } = await supabase
       .from("profiles")
       .select("username")
       .eq("id", auth.user.id)
       .single();
 
-    if (error || !profile) {
-      setMessage("Profile not found. Contact admin.");
+    if (!profile) {
+      setMessage("Profile not found");
       setLoading(false);
       return;
     }
 
     setUsername(profile.username);
+
+    // 3. LOAD MAPS FROM DATABASE (THIS IS THE KEY FIX)
+    const { data: mapData, error } = await supabase
+      .from("maps")
+      .select("id, name")
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.log("MAP LOAD ERROR:", error);
+      setMessage("Failed to load maps");
+      setLoading(false);
+      return;
+    }
+
+    setMaps(mapData ?? []);
     setLoading(false);
   }
 
   async function submitRun() {
     setMessage("Submitting...");
 
-    if (!userId || !username) {
-      setMessage("Account not ready.");
-      return;
-    }
+    if (!userId || !username) return;
 
-    if (!map.trim()) {
-      setMessage("Map name required.");
+    if (!map) {
+      setMessage("Please select a map");
       return;
     }
 
     const { error } = await supabase.from("submissions").insert([
       {
         user_id: userId,
-        username: username,
-
-        map: map.trim(),
+        username,
+        map,
         run_type: runType,
         run_time: runTime ? Number(runTime) : null,
         video_url: videoUrl.trim(),
-
         status: "pending",
       },
     ]);
 
     if (error) {
-      console.error(error);
+      console.log(error);
       setMessage("Error: " + error.message);
       return;
     }
@@ -89,7 +107,7 @@ export default function SubmitPage() {
   if (loading) {
     return (
       <main style={page}>
-        <p>Loading account...</p>
+        <p>Loading...</p>
       </main>
     );
   }
@@ -102,12 +120,20 @@ export default function SubmitPage() {
         Logged in as: <b>{username}</b>
       </p>
 
-      <input
-        placeholder="Map name"
+      {/* MAP DROPDOWN FROM DATABASE */}
+      <select
         value={map}
         onChange={(e) => setMap(e.target.value)}
         style={input}
-      />
+      >
+        <option value="">Select a map</option>
+
+        {maps.map((m) => (
+          <option key={m.id} value={m.name}>
+            {m.name}
+          </option>
+        ))}
+      </select>
 
       <select
         value={runType}
@@ -137,7 +163,7 @@ export default function SubmitPage() {
         Submit
       </button>
 
-      <p style={{ marginTop: 10 }}>{message}</p>
+      <p>{message}</p>
     </main>
   );
 }
@@ -163,7 +189,6 @@ const input: React.CSSProperties = {
   border: "1px solid #333",
   background: "#111",
   color: "white",
-  boxSizing: "border-box",
 };
 
 const button: React.CSSProperties = {
