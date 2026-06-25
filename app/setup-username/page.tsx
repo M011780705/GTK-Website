@@ -10,13 +10,12 @@ export default function SetupUsernamePage() {
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    checkUser();
+    loadUser();
   }, []);
 
-  async function checkUser() {
+  async function loadUser() {
     const { data } = await supabase.auth.getUser();
 
     if (!data.user) {
@@ -26,76 +25,44 @@ export default function SetupUsernamePage() {
 
     setUserId(data.user.id);
 
-    // check if profile already exists
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("username")
-      .eq("id", data.user.id)
-      .single();
+    // Try to pull Discord metadata
+    const discordName =
+      data.user.user_metadata?.full_name ||
+      data.user.user_metadata?.name ||
+      "Player";
 
-    if (profile?.username) {
-      router.push("/");
-      return;
-    }
-
+    setUsername(discordName);
     setLoading(false);
   }
 
-  async function createProfile() {
+  async function save() {
     if (!userId) return;
 
-    if (!username.trim()) {
-      setMessage("Username cannot be empty");
-      return;
-    }
-
-    setMessage("Creating profile...");
-
-    const { error } = await supabase.from("profiles").insert([
-      {
-        id: userId,
-        username: username.trim(),
-      },
-    ]);
-
-    if (error) {
-      setMessage("Error: " + error.message);
-      return;
-    }
-
-    setMessage("Profile created!");
+    await supabase.from("profiles").upsert({
+      id: userId,
+      username: username.trim(),
+    });
 
     router.push("/");
   }
 
   if (loading) {
-    return (
-      <main style={page}>
-        <p>Checking account...</p>
-      </main>
-    );
+    return <p style={{ color: "white" }}>Loading...</p>;
   }
 
   return (
     <main style={page}>
-      <h1>Choose your username</h1>
-
-      <p style={{ opacity: 0.7 }}>
-        This will be your permanent leaderboard name.
-      </p>
+      <h1>Choose Username</h1>
 
       <input
-        placeholder="Username"
         value={username}
         onChange={(e) => setUsername(e.target.value)}
         style={input}
       />
 
-      <button onClick={createProfile} style={button}>
-        Save Username
+      <button onClick={save} style={button}>
+        Continue
       </button>
-
-      <p>{message}</p>
     </main>
   );
 }
@@ -105,15 +72,11 @@ const page: React.CSSProperties = {
   background: "#0f0f0f",
   color: "white",
   minHeight: "100vh",
-  display: "flex",
-  flexDirection: "column",
-  gap: 10,
   fontFamily: "Arial",
 };
 
 const input: React.CSSProperties = {
   padding: 10,
-  width: 300,
   borderRadius: 6,
   border: "1px solid #333",
   background: "#111",
@@ -121,11 +84,11 @@ const input: React.CSSProperties = {
 };
 
 const button: React.CSSProperties = {
+  marginTop: 10,
   padding: 10,
-  background: "#333",
+  background: "#5865F2",
   color: "white",
   border: "none",
   borderRadius: 6,
   cursor: "pointer",
-  width: 200,
 };
