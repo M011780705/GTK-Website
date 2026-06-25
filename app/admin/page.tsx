@@ -3,9 +3,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-const ADMIN_ROLE_ID = "1343948505395499039";
-const GUILD_ID = process.env.NEXT_PUBLIC_DISCORD_GUILD_ID!;
-
 export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -19,6 +16,7 @@ export default function AdminPage() {
   async function load() {
     setLoading(true);
 
+    // 1. Get user
     const { data } = await supabase.auth.getUser();
     const user = data.user;
 
@@ -30,33 +28,14 @@ export default function AdminPage() {
 
     setEmail(user.email ?? null);
 
-    // ⚠️ GET DISCORD SESSION
-    const session = await supabase.auth.getSession();
-    const accessToken = session.data.session?.provider_token;
+    // 2. CHECK SUPABASE ADMIN FLAG (NEW SYSTEM)
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle();
 
-    if (!accessToken) {
-      setIsAdmin(false);
-      setLoading(false);
-      return;
-    }
-
-    // GET DISCORD MEMBER INFO
-    const res = await fetch(
-      `https://discord.com/api/users/@me/guilds/${GUILD_ID}/member`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
-
-    const member = await res.json();
-
-    const roles = member?.roles ?? [];
-
-    const ok = roles.includes(ADMIN_ROLE_ID);
-
-    if (!ok) {
+    if (error || !profile?.is_admin) {
       setIsAdmin(false);
       setLoading(false);
       return;
@@ -64,7 +43,7 @@ export default function AdminPage() {
 
     setIsAdmin(true);
 
-    // LOAD SUBMISSIONS
+    // 3. LOAD SUBMISSIONS
     const { data: submissions } = await supabase
       .from("submissions")
       .select("*")
@@ -79,15 +58,23 @@ export default function AdminPage() {
     await load();
   }
 
-  if (loading) return <main style={{ padding: 40 }}>Loading...</main>;
-
-  if (!isAdmin)
+  if (loading) {
     return (
-      <main style={{ padding: 40 }}>
-        <h1>Not authorized</h1>
-        <p>You do not have the required Discord role.</p>
+      <main style={{ padding: 40, color: "white" }}>
+        Loading...
       </main>
     );
+  }
+
+  if (!isAdmin) {
+    return (
+      <main style={{ padding: 40, color: "white" }}>
+        <h1>Not authorized</h1>
+        <p>You do not have admin permissions.</p>
+        <p style={{ opacity: 0.6 }}>Logged in as: {email}</p>
+      </main>
+    );
+  }
 
   return (
     <main style={{ padding: 40, color: "white", background: "#0f0f0f" }}>
@@ -95,28 +82,62 @@ export default function AdminPage() {
 
       <p style={{ opacity: 0.6 }}>Logged in as: {email}</p>
 
-      <hr style={{ margin: "20px 0" }} />
+      <hr style={{ margin: "20px 0", opacity: 0.2 }} />
 
-      {subs.map((s) => (
-        <div
-          key={s.id}
-          style={{ padding: 10, border: "1px solid #333", marginBottom: 10 }}
-        >
-          <b>
-            {s.player} — {s.map}
-          </b>
+      {subs.length === 0 ? (
+        <p>No submissions yet</p>
+      ) : (
+        subs.map((s) => (
+          <div
+            key={s.id}
+            style={{ padding: 10, border: "1px solid #333", marginBottom: 10 }}
+          >
+            <b>
+              {s.player} — {s.map}
+            </b>
 
-          <p>Status: {s.status}</p>
+            <p>Status: {s.status}</p>
 
-          <button onClick={() => updateStatus(s.id, "accepted")}>
-            Accept
-          </button>
+            {s.video_url && (
+              <a
+                href={s.video_url}
+                target="_blank"
+                style={{ color: "#4ea1ff" }}
+              >
+                Watch Video
+              </a>
+            )}
 
-          <button onClick={() => updateStatus(s.id, "rejected")}>
-            Reject
-          </button>
-        </div>
-      ))}
+            <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
+              <button
+                onClick={() => updateStatus(s.id, "accepted")}
+                style={{
+                  background: "#1f7a3a",
+                  color: "white",
+                  border: "none",
+                  padding: "6px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                Accept
+              </button>
+
+              <button
+                onClick={() => updateStatus(s.id, "rejected")}
+                style={{
+                  background: "#7a1f1f",
+                  color: "white",
+                  border: "none",
+                  padding: "6px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                Reject
+              </button>
+            </div>
+          </div>
+        ))
+      )}
     </main>
   );
 }

@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const code = url.searchParams.get("code");
+  const { searchParams, origin } = new URL(request.url);
+  const code = searchParams.get("code");
 
   if (!code) {
-    return NextResponse.redirect(new URL("/login", url.origin));
+    return NextResponse.redirect(`${origin}/login`);
   }
 
   const supabase = createClient(
@@ -14,11 +14,18 @@ export async function GET(request: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-  if (error) {
-    return NextResponse.redirect(new URL("/login", url.origin));
+  if (error || !data.user) {
+    return NextResponse.redirect(`${origin}/login`);
   }
 
-  return NextResponse.redirect(new URL("/setup-username", url.origin));
+  // 🔥 ENSURE PROFILE EXISTS
+  await supabase.from("profiles").upsert({
+    id: data.user.id,
+    username: data.user.user_metadata?.full_name || "User",
+    is_admin: false,
+  });
+
+  return NextResponse.redirect(`${origin}/`);
 }
