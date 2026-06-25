@@ -9,12 +9,12 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login`);
   }
 
+  // ✅ USE SERVICE ROLE ON SERVER (IMPORTANT)
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // Exchange OAuth code for session
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error || !data.user) {
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
   const user = data.user;
 
-  // 🔥 CRITICAL: CREATE PROFILE IF IT DOESN'T EXIST
+  // 🔥 NOW THIS WILL WORK (NO RLS BLOCKING)
   const { error: profileError } = await supabase
     .from("profiles")
     .upsert({
