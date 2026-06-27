@@ -9,14 +9,13 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${url.origin}/login`);
   }
 
-  // Server client (service role = REQUIRED for reliable inserts)
-  const supabase = createClient(
+  // 1. AUTH CLIENT (safe public anon key)
+  const supabaseAuth = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // Exchange OAuth code for session
-  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+  const { data, error } = await supabaseAuth.auth.exchangeCodeForSession(code);
 
   if (error || !data?.user) {
     console.log("AUTH ERROR:", error);
@@ -25,23 +24,26 @@ export async function GET(request: Request) {
 
   const user = data.user;
 
-  // ✅ FIXED: Reliable Discord username extraction
   const metadata = user.user_metadata || {};
 
   const username =
+    metadata.global_name ||
     metadata.full_name ||
     metadata.name ||
-    metadata.global_name ||
     metadata.preferred_username ||
     metadata.user_name ||
     "Discord User";
 
-  // Debug (safe to remove later)
-  console.log("DISCORD METADATA:", metadata);
-  console.log("FINAL USERNAME:", username);
+  console.log("USER:", user.id);
+  console.log("USERNAME:", username);
 
-  // Create / update profile
-  const { error: profileError } = await supabase
+  // 2. ADMIN CLIENT (THIS BYPASSES RLS)
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  const { data: insertData, error: insertError } = await supabaseAdmin
     .from("profiles")
     .upsert(
       {
@@ -52,11 +54,11 @@ export async function GET(request: Request) {
       {
         onConflict: "id",
       }
-    );
+    )
+    .select();
 
-  if (profileError) {
-    console.log("PROFILE ERROR:", profileError);
-  }
+  console.log("PROFILE INSERT RESULT:", insertData);
+  console.log("PROFILE INSERT ERROR:", insertError);
 
   return NextResponse.redirect(`${url.origin}/`);
 }
