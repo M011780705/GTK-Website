@@ -2,48 +2,57 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export async function GET(request: Request) {
+  console.log("========== CALLBACK HIT ==========");
+
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
 
+  console.log("Code exists:", !!code);
+
   if (!code) {
+    console.log("No OAuth code found.");
     return NextResponse.redirect(`${url.origin}/login`);
   }
 
-  // 1. AUTH CLIENT (safe public anon key)
-  const supabaseAuth = createClient(
+  console.log("Creating Supabase client...");
+
+  const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const { data, error } = await supabaseAuth.auth.exchangeCodeForSession(code);
+  console.log("Exchanging OAuth code...");
+
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+  console.log("Exchange error:", error);
+  console.log("Exchange user:", data?.user);
+  console.log("Exchange session:", data?.session);
 
   if (error || !data?.user) {
-    console.log("AUTH ERROR:", error);
+    console.log("Stopping because auth failed.");
     return NextResponse.redirect(`${url.origin}/login`);
   }
 
   const user = data.user;
 
-  const metadata = user.user_metadata || {};
+  console.log("User ID:", user.id);
+  console.log("User email:", user.email);
+  console.log("User metadata:", user.user_metadata);
 
   const username =
-    metadata.global_name ||
-    metadata.full_name ||
-    metadata.name ||
-    metadata.preferred_username ||
-    metadata.user_name ||
+    user.user_metadata?.global_name ||
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    user.user_metadata?.preferred_username ||
+    user.user_metadata?.user_name ||
     "Discord User";
 
-  console.log("USER:", user.id);
-  console.log("USERNAME:", username);
+  console.log("Username chosen:", username);
 
-  // 2. ADMIN CLIENT (THIS BYPASSES RLS)
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  console.log("Attempting profile upsert...");
 
-  const { data: insertData, error: insertError } = await supabaseAdmin
+  const { data: upsertData, error: upsertError } = await supabase
     .from("profiles")
     .upsert(
       {
@@ -57,8 +66,10 @@ export async function GET(request: Request) {
     )
     .select();
 
-  console.log("PROFILE INSERT RESULT:", insertData);
-  console.log("PROFILE INSERT ERROR:", insertError);
+  console.log("Upsert data:", upsertData);
+  console.log("Upsert error:", upsertError);
+
+  console.log("========== CALLBACK COMPLETE ==========");
 
   return NextResponse.redirect(`${url.origin}/`);
 }
