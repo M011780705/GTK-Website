@@ -1,47 +1,39 @@
+import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
 
-  const report: Record<string, any> = {
-    callback_hit: true,
-    full_url: request.url,
-  };
-
-  // 🔥 STEP 1: Use browser-friendly parsing (NOT code flow)
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // 🔥 This handles BOTH code + access_token flows safely
-  const hash = url.hash;
+  // 🔥 THIS HANDLES BOTH access_token + code flows automatically
+  const { data, error } = await supabase.auth.getSessionFromUrl({
+    url: request.url,
+  });
 
-  report.has_hash = !!hash;
+  if (error || !data.session) {
+    console.log("AUTH FAILED:", error);
+    return NextResponse.redirect(`${url.origin}/login`);
+  }
 
-  // We cannot rely on server parsing hash reliably,
-  // so we instead redirect user to client session capture page.
+  const user = data.session.user;
 
-  return new Response(
-    `
-    <html>
-      <body style="font-family:Arial;padding:30px;background:#111;color:white">
-        <h1>Processing Login...</h1>
-        <script>
-          (async () => {
-            const supabase = window.supabase = window.supabase || {};
-            
-            // force redirect to home where session is handled by Supabase client
-            window.location.href = "/";
-          })();
-        </script>
-      </body>
-    </html>
-    `,
-    {
-      headers: {
-        "Content-Type": "text/html",
-      },
-    }
-  );
+  const username =
+    user.user_metadata?.global_name ||
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    user.email?.split("@")[0] ||
+    "Discord User";
+
+  // IMPORTANT: DO NOT BLOCK LOGIN IF PROFILE FAILS
+  await supabase.from("profiles").upsert({
+    id: user.id,
+    username,
+    is_admin: false,
+  });
+
+  return NextResponse.redirect(`${url.origin}/`);
 }
