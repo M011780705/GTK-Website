@@ -8,8 +8,11 @@ export default function LoginPage() {
       provider: "discord",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+
+        // 🔥 THIS IS THE KEY FIX
+        skipBrowserRedirect: false,
+
         queryParams: {
-          // 🔥 FORCE PKCE FLOW CLEANLY
           response_type: "code",
         },
       },
