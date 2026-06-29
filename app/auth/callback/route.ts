@@ -1,44 +1,68 @@
-import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export async function GET(request: Request) {
-  console.log("========== CALLBACK HIT ==========");
-
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
 
-  console.log("Code exists:", !!code);
+  let report: Record<string, any> = {
+    callback_hit: true,
+    code_exists: !!code,
+  };
 
   if (!code) {
-    console.log("No OAuth code found.");
-    return NextResponse.redirect(`${url.origin}/login`);
+    return new Response(
+      `
+      <html>
+        <body style="font-family:Arial;padding:30px;background:#111;color:white">
+          <h1>OAuth Debug</h1>
+          <pre>${JSON.stringify(report, null, 2)}</pre>
+        </body>
+      </html>
+      `,
+      {
+        headers: {
+          "Content-Type": "text/html",
+        },
+      }
+    );
   }
-
-  console.log("Creating Supabase client...");
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  console.log("Exchanging OAuth code...");
-
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-  console.log("Exchange error:", error);
-  console.log("Exchange user:", data?.user);
-  console.log("Exchange session:", data?.session);
+  report.exchange_error = error;
+  report.user_exists = !!data?.user;
+  report.session_exists = !!data?.session;
 
-  if (error || !data?.user) {
-    console.log("Stopping because auth failed.");
-    return NextResponse.redirect(`${url.origin}/login`);
+  if (!data?.user) {
+    return new Response(
+      `
+      <html>
+        <body style="font-family:Arial;padding:30px;background:#111;color:white">
+          <h1>OAuth Debug</h1>
+          <pre>${JSON.stringify(report, null, 2)}</pre>
+        </body>
+      </html>
+      `,
+      {
+        headers: {
+          "Content-Type": "text/html",
+        },
+      }
+    );
   }
 
   const user = data.user;
 
-  console.log("User ID:", user.id);
-  console.log("User email:", user.email);
-  console.log("User metadata:", user.user_metadata);
+  report.user = {
+    id: user.id,
+    email: user.email,
+    metadata: user.user_metadata,
+  };
 
   const username =
     user.user_metadata?.global_name ||
@@ -48,9 +72,7 @@ export async function GET(request: Request) {
     user.user_metadata?.user_name ||
     "Discord User";
 
-  console.log("Username chosen:", username);
-
-  console.log("Attempting profile upsert...");
+  report.username_chosen = username;
 
   const { data: upsertData, error: upsertError } = await supabase
     .from("profiles")
@@ -66,10 +88,31 @@ export async function GET(request: Request) {
     )
     .select();
 
-  console.log("Upsert data:", upsertData);
-  console.log("Upsert error:", upsertError);
+  report.upsert_data = upsertData;
+  report.upsert_error = upsertError;
 
-  console.log("========== CALLBACK COMPLETE ==========");
+  const { data: profileRow, error: profileLookupError } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  return NextResponse.redirect(`${url.origin}/`);
+  report.profile_lookup = profileRow;
+  report.profile_lookup_error = profileLookupError;
+
+  return new Response(
+    `
+    <html>
+      <body style="font-family:Arial;padding:30px;background:#111;color:white">
+        <h1>OAuth Debug Report</h1>
+        <pre>${JSON.stringify(report, null, 2)}</pre>
+      </body>
+    </html>
+    `,
+    {
+      headers: {
+        "Content-Type": "text/html",
+      },
+    }
+  );
 }
